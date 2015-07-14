@@ -38,7 +38,7 @@
 ;PWRT: MANTIENE AL DSPIC EN RESET POR UN CIERTO TIEMPO ESTABLECIDO, ESTO AYUDA
 ;A ASEGURAR QUE EL VOLTAJE DE ALIMENTACIÓN SE HA ESTABILIZADO (16ms)
 ;..............................................................................
-    config __FBORPOR, PBOR_ON & BORV27 & PWRT_16 & MCLR_EN
+    config __FBORPOR, PBOR_ON & BORV20 & PWRT_16 & MCLR_EN
 ;..............................................................................
 ;SE DESACTIVA EL CÓDIGO DE PROTECCIÓN
 ;..............................................................................
@@ -84,8 +84,10 @@
     CALL    INI_PERIFERICOS
     CALL    CONFIG_UART1
     CALL    CONFIG_UART2
-    ;TIMER1 4HZ
-    ;TIMER3 1HZ
+
+    CALL    CONFIG_TIMERS
+        ;TIMER1 4HZ
+        ;TIMER3 1HZ
     CALL    CONFIG_INTERRUPCIONES
     CALL    _iniciarLCD4bits
     CALL    ACTIVAR_PERIFERICOS
@@ -168,8 +170,8 @@ CONFIG_UART1:
 ;******************************************************************************
 
 INI_GSM:
-    MOV		#__SP_init, W15
-    MOV 	#__SPLIM_init, W0
+    MOV		#__SP_init,     W15
+    MOV 	#__SPLIM_init,  W0
     MOV 	W0, SPLIM
     MOV     #tblpage(INIT_COM),  W0
     MOV     W0, TBLPAG
@@ -256,7 +258,7 @@ ENVIAR_MSJ:
 ;******************************************************************************
 ;DESCRICION:	Establece la dirección del mensaje a leer de la memoria activa
 ;               de la tarjeta SIM, posteriormente espera a que exista un mensaje
-;               nuevo en dicha dirección, el cual será procesado por el DSPIC30F3013
+;               nuevo en dicha dirección, el cual será procesado por el DSPIC
 ;               y además será eliminado.
 ;PARAMETROS: 	NINGUNO
 ;RETORNO: 		NINGUNO
@@ -276,5 +278,59 @@ RECIBIR_MSJ:
 
 
 
+    CONFIG_UART1:
+        MOV     #0x0420, W0
+        MOV     W0, U1MODE
+        NOP
+        MOV     #0x8000, W0
+        MOV     W0, U1STA
+        NOP
+        MOV     #11, W0
+        MOV     W0, U1BRG
+        NOP
+    RETURN
 
 
+    CONFIG_UART2:
+        MOV     #0x0420, W0
+        MOV     W0, U2MODE
+        NOP
+        MOV     #0x8000, W0
+        MOV     W0, U2STA
+        NOP
+        MOV     #11, W0
+        MOV     W0, U2BRG
+        NOP
+    RETURN
+
+
+    CONFIG_TIMERS:
+    ;TIMER1 4HZ
+        
+    ;Configurar Timer 3 - 10 Hz
+        BCLR    PORTD, #RD8
+        CLR     TMR3
+        NOP
+        MOV     #23040, W0
+        MOV     W0, PR3
+        NOP
+        MOV     #0x0010, W0
+        MOV     W0, T3CON
+        NOP
+    RETURN
+
+
+    CONFIG_INTERRUPCIONES:
+
+        BCLR    IFS0, #T1IF
+        BCLR    IFS0, #T3IF
+
+        BSET    IEC0, #T1IE
+        BSET    IEC0, #T3IE
+
+    RETURN
+
+
+    ACTIVAR_PERIFERICOS:
+
+    RETURN
