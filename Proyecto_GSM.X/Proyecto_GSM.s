@@ -91,7 +91,11 @@
 
 
 
-
+;******************************************************************************
+;DESCRICION:	ESTA RUTINA CARGA EN TBLPAG EL APUNTADOR AL PRIMER ELEMENTO DE LA MEMORIA DE PROG
+;PARAMETROS: 	NINGUNO
+;RETORNO: 		NINGUNO
+;******************************************************************************
 INI_PILA_COMANDOS:
     MOV		#__SP_init,     W15
     MOV 	#__SPLIM_init,  W0
@@ -312,9 +316,9 @@ RETURN
 CONFIG_INTERRUPCIONES:
     BCLR    IFS0, #T1IF
     BSET    IEC0, #T1IE
-    ;BCLR    IFS0, #T1IF
-    ;BSET    IEC0, #T1IE
-    ; UART2: Se habilita su ISR para la recepción de las respuestas del modem GSM
+    ;BCLR    IFS0, #T3IF
+    ;BSET    IEC0, #T3IE
+    ;UART2: Se habilita su ISR para la recepción de las respuestas del modem GSM
     BCLR    IFS1, #U2RXIF
     BSET    IEC1, #U2RXIE
 RETURN

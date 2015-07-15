@@ -7,94 +7,90 @@
 ;******************************************************************************
 ; DECLARACIONES GLOBALES
 ;******************************************************************************
-    .global _activarT3
     .global _BIN_TO_BCD
-    .global _INTERRUPCION_ADC
-    .global __ADCInterrupt
-    .global __AD1Interrupt
-    .global __ADC1Interrupt
-    .global __ADC2Interrupt
-    .global __T3Interrupt
+    .global __T1Interrupt
+    .global __U2RXInterrupt
+
+     .equ   RST,    RD8
+     .equ   PWRMON, RD9
+     .equ   EH1,    RB8
+     .equ   EH2,    RB9
 
 
 ;******************************************************************************
-;DESCRICION:	ESTA RUTINA INICIALIZA INTERRUPCION T3 (TIMER 3)
+;DESCRICION:	ISR T1 (TIMER 1)
+;******************************************************************************
+__T1Interrupt:
+    BTSC     PORTB,  #EH1  ; SKIP IF clear
+    GOTO     S1
+
+    BTSC     PORTB,  #EH2
+    GOTO     S2
+    ;SENSOR = 0
+    GOTO     S1
+
+    S1:
+        ;SENSOR = 1
+        GOTO        FIN_T1
+
+    S2:
+        ;SENSOR = 2
+
+    FIN_T1:
+        BCLR   IFS0, #T1IF
+RETFIE
+
+
+
+
+
+;******************************************************************************
+;DESCRICION:	Rutina de interrupcion para recepción de UART2
 ;PARAMETROS: 	NINGUNO
 ;RETORNO: 		NINGUNO
 ;******************************************************************************
-_activarT3:
-    BCLR    IFS0, #T3IF
-    BSET    IEC0, #T3IE
-RETURN
-
-;******************************************************************************
-;DESCRICION:	ISR T3 (TIMER 3)
-;******************************************************************************
-__T3Interrupt:
-    ;BTG    LATD, #RD8
-    BTG     LATD, #LATD8
-    NOP
-    BCLR   IFS0, #T3IF
-RETFIE
-;******************************************************************************
-;DESCRICION:	ISR ADC
-;******************************************************************************
-__ADCInterrupt:
-    BCLR    IFS0, #ADIF
-    NOP
-RETFIE
-;******************************************************************************
-;DESCRICION:	ISR ADC
-;******************************************************************************
-__AD1Interrupt:
-    BCLR    IFS0, #ADIF
-    NOP
-RETFIE
-;******************************************************************************
-;DESCRICION:	ISR ADC
-;******************************************************************************
-__ADC1Interrupt:
-    BCLR    IFS0, #ADIF
-    NOP
-RETFIE
-
-;******************************************************************************
-;DESCRICION:	ISR ADC
-;******************************************************************************
-__ADC2Interrupt:
-    BCLR    IFS0, #ADIF
-    NOP
-RETFIE
+__U2RXInterrupt:
+    PUSH    W0
+    PUSH    W2
+    MOV     U2RXREG,    W0
+    MOV     W0,         [W2++]
 
 
+    MOV     #0x0A,      W3
+    CPSNE   W3,         W0
+    GOTO    COMP1
 
+    MOV     #0x0D,      W3
+    CPSNE   W3,         W0
+    GOTO    COMP2
 
-;***********************************************
-; Provisional mientras vemos qué pasa con ADCInt
-;***********************************************
-_INTERRUPCION_ADC:
-    ;Envio a UART --------------
-    MOV     ADCBUF0,    W0
-                                    ; Se copia w0 a w2 ya que _BIN_to_BCD usa el registro W2 como dividendo
-    MOV     W0,         W2
+    MOV     #0x3E,      W3      ; '>'
+    CPSNE   W3,         W0
+    GOTO    COMP3
+    GOTO    FIN
 
-    MOV     W0,         W1
-    AND     #0x3F,      W1          ; Parte baja de registro
-    
-    LSR     W0,         #6,     W3  ; Parte alta de registro
-    BSET    W3,         #7
+    COMP1:
+        MOV   #41,      W0      ; W0 = 'A'
+        ;CONT_LF --
+        GOTO FIN
 
-    MOV     W1,         U1TXREG
-    NOP
-    MOV     W3,         U1TXREG
-    CALL   _BIN_TO_BCD
-   
-    MOV     ADCBUF1,    W2
-    CALL   _BIN_TO_BCD
-   
-    BCLR    IFS0, #ADIF
-    NOP
-RETFIE
+    COMP2:
+        MOV   #68,      W0      ; W0 = 'D'
+        GOTO FIN
+
+    COMP3:
+        ;CONT_LF --
+
+    FIN:
+        MOV     W0,     U1TXREG
+        NOP
+        BCLR    IFS1,   #U2RXIF
+
+    POP W2
+    POP W0
+
+    RETFIE
+
 
 
 ;******************************************************************************
@@ -104,19 +100,16 @@ RETFIE
 ;******************************************************************************
 _BIN_TO_BCD:
     PUSH.S
-    MOV     #10, W4
+    MOV         #10, W4
     DIVIDE:
         REPEAT  #17          ; EJECUTA DIV.U 18 VECES
         DIV.U    W2, W4      ; Divide W2 ENTRE W4   ; ALMACENA EL COCIENTE en W0,  reciduo en W1 (VALOR A IMPRIMIR)
 
         CP0     W0
-        BRA     Z, FIN_DIV
-        MOV     W0 , W2
+        BRA     Z,  FIN_DIV
+        MOV     W0, W2
         GOTO    DIVIDE
 
     FIN_DIV:
         RETURN
-
-
-
 .END
