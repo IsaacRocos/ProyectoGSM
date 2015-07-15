@@ -81,20 +81,28 @@
 
 .text
     __reset:
+    CALL    INI_PILA_COMANDOS
     CALL    INI_PERIFERICOS
-    CALL    CONFIG_UART1
-    CALL    CONFIG_UART2
-
-    CALL    CONFIG_TIMERS
-        ;TIMER1 4HZ
-        ;TIMER3 1HZ
+    CALL    CONFIG_UART
+    CALL    CONFIG_TIMER
     CALL    CONFIG_INTERRUPCIONES
     CALL    _iniciarLCD4bits
     CALL    ACTIVAR_PERIFERICOS
 
 
+
+
+INI_PILA_COMANDOS:
+    MOV		#__SP_init,     W15
+    MOV 	#__SPLIM_init,  W0
+    MOV 	W0, SPLIM
+    MOV     #tblpage(INIT_COM),  W0
+    MOV     W0, TBLPAG
+
+    RETURN
+
 ;******************************************************************************
-;DESCRICION:	ESTA RUTINA INICIALIZA LOS PERIFERICO
+;DESCRICION:	ESTA RUTINA INICIALIZA LOS PERIFERICOS
 ;PARAMETROS: 	NINGUNO
 ;RETORNO: 		NINGUNO
 ;******************************************************************************
@@ -140,27 +148,6 @@ INI_PERIFERICOS:
 
 
 ;******************************************************************************
-;DESCRICION:	Esta rutina CONFIGURA EL UART1
-;PARAMETROS: 	NINGUNO
-;RETORNO: 		NINGUNO
-;******************************************************************************
-CONFIG_UART1:
-
-        MOV     #0x0420, W0
-        MOV     W0, U1MODE
-        NOP
-        MOV     #0x8000, W0
-        MOV     W0, U1STA
-        NOP
-        MOV     #11, W0
-        MOV     W0, U1BRG
-        NOP
-
-        RETURN
-
-
-
-;******************************************************************************
 ;DESCRICION:	Esta rutina se encarga de inicializar el modem GSM
 ;PARAMETROS: 	NINGUNO
 ;RETORNO: 		NINGUNO
@@ -170,11 +157,6 @@ CONFIG_UART1:
 ;******************************************************************************
 
 INI_GSM:
-    MOV		#__SP_init,     W15
-    MOV 	#__SPLIM_init,  W0
-    MOV 	W0, SPLIM
-    MOV     #tblpage(INIT_COM),  W0
-    MOV     W0, TBLPAG
     
     BSET    PORTD,  #RST    ; RESET = 0
     CALL    RETARDO_300MS
@@ -188,7 +170,7 @@ INI_GSM:
     MOV     #tbloffset(NO_ECO),   W1    ; DESHABILITAR ECO EN REPUESTA
     CALL    ENVIAR_CDM_GSM
 
-    MOV     #tbloffset(TXT_MOD),   W1   ; DESHABILITAR ECO EN REPUESTA
+    MOV     #tbloffset(TXT_MOD),   W1   ; ACTIVAR MODO TEXTO
     CALL    ENVIAR_CDM_GSM
 
     RETURN
@@ -245,7 +227,6 @@ RESPUESTA_GSM:
 ;******************************************************************************
 
 ENVIAR_MSJ:
-
     MOV     #tbloffset(TELEFONO),   W1    ; ESTABLECER TELEFONO
     CALL    ENVIAR_CDM_GSM
     MOV     W0,                     W1    ; DIRECCION DEL MSJ A ENVIAR
@@ -265,8 +246,7 @@ ENVIAR_MSJ:
 ;******************************************************************************
 
 RECIBIR_MSJ:
-
-    MOV     #tbloffset(DIR_LEER),   W1    ; ESTABLECER DIRECCION A LEER
+    MOV     #tbloffset(DIR_LEER),   W1        ; ESTABLECER DIRECCION A LEER
     CALL    ENVIAR_CDM_GSM
 
     ;CONDICION
@@ -277,60 +257,87 @@ RECIBIR_MSJ:
     RETURN
 
 
+;******************************************************************************
+;DESCRICION:	Configuración de UART1 y UART2
+;|UART1 -> PC|  ,  |UART2 -> GSM|
+;PARAMETROS: 	NINGUNO
+;RETORNO: 		NINGUNO
+;******************************************************************************
+CONFIG_UART:
+    MOV     #0x0420, W0
+    MOV     W0, U1MODE
+    NOP
+    MOV     #0x8000, W0
+    MOV     W0, U1STA
+    NOP
+    MOV     #11, W0
+    MOV     W0, U1BRG
+    NOP
 
-    CONFIG_UART1:
-        MOV     #0x0420, W0
-        MOV     W0, U1MODE
-        NOP
-        MOV     #0x8000, W0
-        MOV     W0, U1STA
-        NOP
-        MOV     #11, W0
-        MOV     W0, U1BRG
-        NOP
-    RETURN
-
-
-    CONFIG_UART2:
-        MOV     #0x0420, W0
-        MOV     W0, U2MODE
-        NOP
-        MOV     #0x8000, W0
-        MOV     W0, U2STA
-        NOP
-        MOV     #11, W0
-        MOV     W0, U2BRG
-        NOP
-    RETURN
-
-
-    CONFIG_TIMERS:
-    ;TIMER1 4HZ
-        
-    ;Configurar Timer 3 - 10 Hz
-        BCLR    PORTD, #RD8
-        CLR     TMR3
-        NOP
-        MOV     #23040, W0
-        MOV     W0, PR3
-        NOP
-        MOV     #0x0010, W0
-        MOV     W0, T3CON
-        NOP
-    RETURN
+    MOV     #0x0420, W0
+    MOV     W0, U2MODE
+    NOP
+    MOV     #0x8000, W0
+    MOV     W0, U2STA
+    NOP
+    MOV     #11, W0
+    MOV     W0, U2BRG
+    NOP
+RETURN
 
 
-    CONFIG_INTERRUPCIONES:
+;******************************************************************************
+;DESCRICION:	Configuración de TIMERS
+;PARAMETROS: 	NINGUNO
+;RETORNO: 		NINGUNO
+;******************************************************************************
+CONFIG_TIMER:
+    ;TIMER1 4HZ  -- Valores de Preescalador Calulados:  460800       57600        7200        1800
+    CLR     TMR1
+    NOP
+    MOV     #57600, W0
+    MOV     W0, PR1
+    NOP
+    MOV     #0x0010, W0
+    MOV     W0, T1CON
+    NOP
+RETURN
 
-        BCLR    IFS0, #T1IF
-        BCLR    IFS0, #T3IF
 
-        BSET    IEC0, #T1IE
-        BSET    IEC0, #T3IE
+;******************************************************************************
+;DESCRICION:	Configuración de interrupciones del programa
+;PARAMETROS: 	NINGUNO
+;RETORNO: 		NINGUNO
+;******************************************************************************
+CONFIG_INTERRUPCIONES:
+    BCLR    IFS0, #T1IF
+    BSET    IEC0, #T1IE
+    ;BCLR    IFS0, #T1IF
+    ;BSET    IEC0, #T1IE
+    ; UART2: Se habilita su ISR para la recepción de las respuestas del modem GSM
+    BCLR    IFS1, #U2RXIF
+    BSET    IEC1, #U2RXIE
+RETURN
 
-    RETURN
+
+;******************************************************************************
+;DESCRICION:	Activación de perifericos
+;PARAMETROS: 	NINGUNO
+;RETORNO: 		NINGUNO
+;******************************************************************************
+ACTIVAR_PERIFERICOS:
+    BSET    U1MODE, #UARTEN
+    BSET    U1STA,  #UTXEN
+
+    BSET    U2MODE, #UARTEN
+    BSET    U2STA,  #UTXEN
+
+    BSET    T1CON,  #TON
+    ;BSET    T3CON,  #TON
+RETURN
 
 
-    ACTIVAR_PERIFERICOS:
 
-    RETURN
+
+
+
