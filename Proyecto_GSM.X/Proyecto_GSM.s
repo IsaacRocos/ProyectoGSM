@@ -54,7 +54,10 @@
 ;VARIABLES NO INICIALIZADAS EN EL ESPACIO X DE LA MEMORIA DE DATOS
 ;******************************************************************************
     .section .xbss, bss, xmemory
-        var:    .space 10
+     CONT_LF:   .space 2*1
+     SENSOR:    .space 2*1
+     MSJ_RCV:   .space 2*1
+
 ;******************************************************************************
 ;CONSTANTES ALMACENADAS EN EL ESPACIO DE LA MEMORIA DE PROGRAMA
 ;******************************************************************************
@@ -74,6 +77,11 @@
         .BYTE   'A','T','+','C','M','G','R','=','1',0x0D
     DEL_MSJ_RECV:
         .BYTE   'A','T','+','C','M','G','D','=','1',0x0D
+    S1_ACTIVADO:
+        .BYTE   'S','E','N','S','O','R',' ','1',' ','A','C','T','I','V','A','D','O',0x1A,0x0D
+    S2_ACTIVADO:
+        .BYTE   'S','E','N','S','O','R',' ','2',' ','A','C','T','I','V','A','D','O',0x1A,0x0D
+
 
 ;******************************************************************************
 ;SECCION DE CODIGO EN LA MEMORIA DE PROGRAMA
@@ -88,6 +96,36 @@
     CALL    CONFIG_INTERRUPCIONES
     CALL    _iniciarLCD4bits
     CALL    ACTIVAR_PERIFERICOS
+
+    MONITOREO_SENSOR:
+    MOV     #1,         W1
+    MOV     #SENSOR,    W0
+    CPSNE   W0,         W1 ;  ¿ SENSOR != 1 ?
+    GOTO    SENSOR1
+
+    MOV     #2,         W1
+    MOV     #SENSOR,   W0
+    CPSNE   W0,         W1 ;  ¿ SENSOR != 2 ?
+    GOTO    SENSOR2
+
+    CALL    RECIBIR_MSJ
+
+    MOV     #1,          W1
+    MOV     #MSJ_RCV,    W0
+    CPSNE   W0,          W1     ;  ¿ MSJ_RCV != 1 ?
+    GOTO    ANALIZAR_TRAMA      ; NO RECUERDO CÓMO se hacía ESTA ...
+    GOTO    MONITOREO_SENSOR
+
+    GOTO    MONITOREO_SENSOR
+
+    SENSOR1:
+        MOV     #tbloffset(S1_ACTIVADO),    W0
+        CALL    ENVIAR_MSJ
+        GOTO    MONITOREO_SENSOR
+    SENSOR2:
+        MOV     #tbloffset(S2_ACTIVADO),    W0
+        CALL    ENVIAR_MSJ
+        GOTO    MONITOREO_SENSOR
 
 
 
@@ -148,117 +186,6 @@ INI_PERIFERICOS:
 
     RETURN
 
-
-
-
-;******************************************************************************
-;DESCRICION:	Esta rutina se encarga de inicializar el modem GSM
-;PARAMETROS: 	NINGUNO
-;RETORNO: 		NINGUNO
-;******************************************************************************
-;     .equ   RST,    RD8
-;     .equ   PWRMON, RD9
-;******************************************************************************
-
-INI_GSM:
-    
-    BSET    PORTD,  #RST    ; RESET = 0
-    CALL    RETARDO_300MS
-    ESPERA_MODEM:           ; POOL PWRMON
-        BTSS    PORTD , #PWRMON
-        GOTO    ESPERA_MODEM
-
-    MOV     #tbloffset(INIT_COM), W1    ; ESTABLECER COMUNICACION
-    CALL    ENVIAR_CDM_GSM
-
-    MOV     #tbloffset(NO_ECO),   W1    ; DESHABILITAR ECO EN REPUESTA
-    CALL    ENVIAR_CDM_GSM
-
-    MOV     #tbloffset(TXT_MOD),   W1   ; ACTIVAR MODO TEXTO
-    CALL    ENVIAR_CDM_GSM
-
-    RETURN
-
-
-
-;******************************************************************************
-;DESCRICION:	Esta rutina se encarga de enviar los comandos AT al modem GSM a
-;               través de la interfaz de comunicación UART.
-;PARAMETROS: 	NINGUNO
-;RETORNO: 		NINGUNO
-;******************************************************************************
-
-ENVIAR_CDM_GSM:
-    ;CONT_LF = 2
-    ;W2 = &CAD_RESP_GSM
-    MOV     #0x0D,   W3  ;FIN DE CADENA
-    ENVIAR_LETRA:
-        BCLR    IFS1,   #U2TXIF
-        NOP
-        MOV     [W1++], W0
-        MOV     W0,     U2TXREG
-
-        POOL_U2TX:
-            BTSS    IFS1,   #U2TXIF
-            GOTO    POOL_U2TX
-        CPSEQ       W0,     W2
-        GOTO        ENVIAR_LETRA
-        CALL        RESPUESTA_GSM
-     RETURN
-
-
-;******************************************************************************
-;DESCRICION:	Esta rutina sirve para indicar al DSPIC30F3013 el momento en
-;               que se ha recibido completamente la respuesta del modem GSM
-;PARAMETROS: 	NINGUNO
-;RETORNO: 		NINGUNO
-;******************************************************************************
-
-RESPUESTA_GSM:
-    POOL_CONT_LF:
-    ;CICLO, CONT_LF = 0 ?
-    GOTO    POOL_CONT_LF
-    MOV     #0,     [W2]
-    RETURN
-
-
-
-;******************************************************************************
-;DESCRICION:	Esta rutina se encarga de establecer el número telefónico al
-;               que será enviado el SMS además del contenido del mismo.
-;PARAMETROS: 	NINGUNO
-;RETORNO: 		NINGUNO
-;******************************************************************************
-
-ENVIAR_MSJ:
-    MOV     #tbloffset(TELEFONO),   W1    ; ESTABLECER TELEFONO
-    CALL    ENVIAR_CDM_GSM
-    MOV     W0,                     W1    ; DIRECCION DEL MSJ A ENVIAR
-    CALL    ENVIAR_CDM_GSM
-
-    RETURN
-
-
-
-;******************************************************************************
-;DESCRICION:	Establece la dirección del mensaje a leer de la memoria activa
-;               de la tarjeta SIM, posteriormente espera a que exista un mensaje
-;               nuevo en dicha dirección, el cual será procesado por el DSPIC
-;               y además será eliminado.
-;PARAMETROS: 	NINGUNO
-;RETORNO: 		NINGUNO
-;******************************************************************************
-
-RECIBIR_MSJ:
-    MOV     #tbloffset(DIR_LEER),   W1        ; ESTABLECER DIRECCION A LEER
-    CALL    ENVIAR_CDM_GSM
-
-    ;CONDICION
-
-    MOV     #tbloffset(DEL_MSJ_RECV),   W1    ; SE BORRA MSJ RECIBIDO
-    CALL    ENVIAR_CDM_GSM
-
-    RETURN
 
 
 ;******************************************************************************
@@ -343,5 +270,136 @@ RETURN
 
 
 
+;******************************************************************************
+;DESCRICION:	Esta rutina se encarga de inicializar el modem GSM
+;PARAMETROS: 	NINGUNO
+;RETORNO: 		NINGUNO
+;******************************************************************************
+;     .equ   RST,    RD8
+;     .equ   PWRMON, RD9
+;******************************************************************************
+
+INI_GSM:
+    
+    BSET    PORTD,  #RST    ; RESET = 0
+    RCALL   _retardo300ms
+    ESPERA_MODEM:           ; POOL PWRMON
+        BTSS    PORTD , #PWRMON
+        GOTO    ESPERA_MODEM
+
+    MOV     #tbloffset(INIT_COM), W1    ; ESTABLECER COMUNICACION
+    CALL    ENVIAR_CDM_GSM
+
+    MOV     #tbloffset(NO_ECO),   W1    ; DESHABILITAR ECO EN REPUESTA
+    CALL    ENVIAR_CDM_GSM
+
+    MOV     #tbloffset(TXT_MOD),   W1   ; ACTIVAR MODO TEXTO
+    CALL    ENVIAR_CDM_GSM
+
+    RETURN
+
+
+
+;******************************************************************************
+;DESCRICION:	Esta rutina se encarga de enviar los comandos AT al modem GSM a
+;               través de la interfaz de comunicación UART.
+;PARAMETROS: 	NINGUNO
+;RETORNO: 		NINGUNO
+;******************************************************************************
+
+ENVIAR_CDM_GSM:
+
+    MOV     #CONT_LF,   W0      ;CONT_LF = 2
+    MOV      #2,     W4
+    MOV.B    W4,       [W0]
+
+    ;W2 = &CAD_RESP_GSM
+
+    MOV     #0x0D,   W3  ;FIN DE CADENA
+    ENVIAR_LETRA:
+        BCLR    IFS1,   #U2TXIF
+        NOP
+        MOV     [W1++], W0
+        MOV     W0,     U2TXREG
+
+        POOL_U2TX:
+            BTSS    IFS1,   #U2TXIF
+            GOTO    POOL_U2TX
+        CPSEQ       W0,     W2
+        GOTO        ENVIAR_LETRA
+        CALL        RESPUESTA_GSM
+     RETURN
+
+
+;******************************************************************************
+;DESCRICION:	Esta rutina sirve para indicar al DSPIC30F3013 el momento en
+;               que se ha recibido completamente la respuesta del modem GSM
+;PARAMETROS: 	NINGUNO
+;RETORNO: 		NINGUNO
+;******************************************************************************
+
+RESPUESTA_GSM:
+    CLR     W3             ; W3=0
+    POOL_CONT_LF:          ; CONT_LF = 0 ???
+
+    MOV     #CONT_LF,  W0
+    CPSEQ   W0,        W3  ;
+    GOTO    POOL_CONT_LF
+    MOV      #0,     W4
+    MOV.B    W4,    [W2]
+
+    RETURN
+
+
+
+;******************************************************************************
+;DESCRICION:	Esta rutina se encarga de establecer el número telefónico al
+;               que será enviado el SMS además del contenido del mismo.
+;PARAMETROS: 	NINGUNO
+;RETORNO: 		NINGUNO
+;******************************************************************************
+
+ENVIAR_MSJ:
+    MOV     #tbloffset(TELEFONO),   W1    ; ESTABLECER TELEFONO
+    CALL    ENVIAR_CDM_GSM
+    MOV     W0,                     W1    ; DIRECCION DEL MSJ A ENVIAR
+    CALL    ENVIAR_CDM_GSM
+
+    RETURN
+
+
+
+;******************************************************************************
+;DESCRICION:	Establece la dirección del mensaje a leer de la memoria activa
+;               de la tarjeta SIM, posteriormente espera a que exista un mensaje
+;               nuevo en dicha dirección, el cual será procesado por el DSPIC
+;               y además será eliminado.
+;PARAMETROS: 	NINGUNO
+;RETORNO: 		NINGUNO
+;******************************************************************************
+
+RECIBIR_MSJ:
+    MOV     #tbloffset(DIR_LEER),   W1        ; ESTABLECER DIRECCION A LEER
+    CALL    ENVIAR_CDM_GSM
+
+    ; if MSJ_RECIBIDO  ...  CONDICION RARA
+    ;GOTO
+    MOV     #MSJ_RCV,       W2              ; NO
+    MOV      #0,            W4
+    MOV.B    W4,           [W2]
+
+    M_RECIBIDO:
+    MOV     #tbloffset(DEL_MSJ_RECV),   W1    ; SE BORRA MSJ RECIBIDO
+    CALL    ENVIAR_CDM_GSM
+
+    FIN_RM:
+    RETURN
+
+
+
+
+ANALIZAR_TRAMA:
+
+RETURN
 
 

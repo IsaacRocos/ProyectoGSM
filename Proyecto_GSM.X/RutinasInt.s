@@ -21,20 +21,26 @@
 ;DESCRICION:	ISR T1 (TIMER 1)
 ;******************************************************************************
 __T1Interrupt:
-    BTSC     PORTB,  #EH1  ; SKIP IF clear
+    MOV     #SENSOR,  W0
+
+    BTSC     PORTB,  #EH1  ; SKIP IF EH1 = 0
     GOTO     S1
 
-    BTSC     PORTB,  #EH2
+    BTSC     PORTB,  #EH2  ; skip if EH2 = 0
     GOTO     S2
-    ;SENSOR = 0
-    GOTO     S1
+
+    MOV      #0,     W4
+    MOV.B    W4,   [W2]   ;SENSOR = 0
+    GOTO     FIN_T1
 
     S1:
-        ;SENSOR = 1
+        MOV      #1,     W4
+        MOV.B    W4,     [W2]   ;SENSOR = 1
         GOTO        FIN_T1
 
     S2:
-        ;SENSOR = 2
+        MOV      #2,     W4
+        MOV.B    W4,      [W2]   ;SENSOR = 2
 
     FIN_T1:
         BCLR   IFS0, #T1IF
@@ -71,7 +77,8 @@ __U2RXInterrupt:
 
     COMP1:
         MOV   #41,      W0      ; W0 = 'A'
-        ;CONT_LF --
+        MOV   #CONT_LF, W4      ; W4 = CONT_LF
+        DEC   [W4],     [W4]    ; CONT_LF --
         GOTO FIN
 
     COMP2:
@@ -79,7 +86,8 @@ __U2RXInterrupt:
         GOTO FIN
 
     COMP3:
-        ;CONT_LF --
+        MOV   #CONT_LF, W4      ; W4 = CONT_LF
+        DEC   [W4],     [W4]    ; CONT_LF --
 
     FIN:
         MOV     W0,     U1TXREG
@@ -113,3 +121,4 @@ _BIN_TO_BCD:
     FIN_DIV:
         RETURN
 .END
+

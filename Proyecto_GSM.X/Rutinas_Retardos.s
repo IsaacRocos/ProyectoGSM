@@ -9,6 +9,7 @@
         .global _retardo1s
         .global _retardo15ms
         .global _retardo25ms
+        .global _retardo300ms
 ;******************************************************************************
 ;DESCRICION:	ESTA RUTINA GENERA UN RETARDO DE APROX 1S FOSC=7.3728MHZ
 ;PARAMETROS: 	NINGUNO
@@ -71,6 +72,29 @@ _retardo25ms:
 
     DEC     W1, W1
     BRA     NZ, C2_25ms
+
+    POP.D     W0
+
+RETURN
+
+;******************************************************************************
+;DESCRICION:	ESTA RUTINA GENERA UN RETARDO DE APROX 300 ms FOSC=7.3728MHZ
+;PARAMETROS: 	NINGUNO
+;RETORNO: 		NINGUNO
+;******************************************************************************
+_retardo300ms:
+    PUSH.D  W0
+    MOV     #720, W1
+
+    C2_300ms:
+    CLR.B   W0
+
+    C1_300ms:
+    DEC.B   W0, W0
+    BRA     NZ, C1_300ms
+
+    DEC     W1, W1
+    BRA     NZ, C2_300ms
 
     POP.D     W0
 
